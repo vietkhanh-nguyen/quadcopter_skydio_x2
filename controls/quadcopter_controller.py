@@ -106,13 +106,17 @@ class QuadcopterPIDController:
         self.prev_de_t = de
         return self.vehicle_mass_offset + self.Kp_t * e + self.Ki_t * self.int_t + self.Kd_t * de
 
-    def position_controller(self, e):
+    def position_controller(self, e, de=None):
         e[1] = -e[1]
+        de[1] = -de[1]
         if self.prev_e_pos is None:
             self.prev_e_pos = e
             self.prev_de_pos = np.zeros_like(e)
-        raw_de = (e - self.prev_e_pos) / self.dt
-        de = self.low_pass_filter(raw_de, self.prev_de_pos)
+
+        if de is None:
+            raw_de = (e - self.prev_e_pos) / self.dt
+            de = self.low_pass_filter(raw_de, self.prev_de_pos)
+
         self.int_pos += e * self.dt
         self.prev_e_pos = e
         self.prev_de_pos = de
@@ -142,19 +146,20 @@ class QuadcopterPIDController:
     def pos_control_algorithm(self, state, pos_ref, yaw_ref=None):
         state = np.array(state)
         x, y, z, roll, pitch, yaw, v_x, v_y, v_z, v_roll, v_pitch, v_yaw = state
-        x_ref, y_ref, z_ref = pos_ref.flatten()
+        x_ref, y_ref, altitude_ref = pos_ref.flatten()
         position_ref = np.array([x_ref, y_ref])
-        altitude_ref = z_ref
-
         # Generate roll and pitch reference from position error
         pos_error_world = position_ref - np.array([x, y])
-        yaw = self.normalize_angle(yaw)
+        # yaw = self.normalize_angle(yaw)
         R_world_to_body = np.array([
             [np.cos(yaw), np.sin(yaw)],
             [-np.sin(yaw), np.cos(yaw)]
         ])
-        pos_error_body = R_world_to_body @ pos_error_world
-        pitch_ref, roll_ref  = self.position_controller(pos_error_body)
+        pos_error_body = R_world_to_body @ pos_error_world.reshape(2, 1)
+        vel_world = np.array([v_x, v_y])
+        vel_body = R_world_to_body @ vel_world.reshape(2, 1)
+        pitch_ref, roll_ref  = self.position_controller(pos_error_body.reshape(-1), -vel_body.reshape(-1))
+        # pitch_ref, roll_ref  = self.position_controller(pos_error_body.reshape(-1))
         u_thrust = self.thrust_controller(altitude_ref - z)
         u_roll = self.roll_controller(roll_ref - roll)
         u_pitch = self.pitch_controller(pitch_ref - pitch)
@@ -180,6 +185,4 @@ class QuadcopterPIDController:
         u_roll = self.roll_controller(roll_ref - roll)
         u_pitch = self.pitch_controller(pitch_ref - pitch)
         u_yaw = self.yaw_controller(yaw_ref-yaw) if yaw_ref is not None else self.yaw_controller(-yaw)
-        control_signal = np.array([u_thrust, u_roll, u_pitch, u_yaw])
-        print([f"{u:.3f}" for u in control_signal])
         return self.motor_mixing_algorithm(u_thrust, u_roll, u_pitch, u_yaw)

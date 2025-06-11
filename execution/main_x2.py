@@ -6,7 +6,7 @@ import mujoco as mj
 from mujoco.glfw import glfw
 import numpy as np
 import os
-from controls.quadcoper_controller import QuadcopterPIDController
+from controls.quadcopter_controller import QuadcopterPIDController
 from scipy.spatial.transform import Rotation 
 import matplotlib.pyplot as plt
 import pygame
@@ -50,6 +50,9 @@ class MujocoSim:
 
         self.vx_ref = 0.0
         self.vy_ref = 0.0 
+
+        self.x_ref = 0.0
+        self.y_ref = 0.0 
         self.z_ref = 1.0
         self.yaw_ref = 0.0
 
@@ -169,13 +172,17 @@ class MujocoSim:
         max_speed = 2
         if glfw.get_key(window, glfw.KEY_LEFT) == glfw.PRESS:
             self.vy_ref = np.clip(self.vy_ref + step, -max_speed, max_speed)
+            self.y_ref = self.y_ref + step
         elif glfw.get_key(window, glfw.KEY_RIGHT) == glfw.PRESS:
             self.vy_ref = np.clip(self.vy_ref - step, -max_speed, max_speed)
+            self.y_ref = self.y_ref - step
 
         if glfw.get_key(window, glfw.KEY_UP) == glfw.PRESS:
             self.vx_ref = np.clip(self.vx_ref + step, -max_speed, max_speed)
+            self.x_ref = self.x_ref + step
         elif glfw.get_key(window, glfw.KEY_DOWN) == glfw.PRESS:
             self.vx_ref = np.clip(self.vx_ref - step, -max_speed, max_speed)
+            self.x_ref = self.x_ref - step
 
         if glfw.get_key(window, glfw.KEY_KP_ADD) == glfw.PRESS:
             self.z_ref = np.clip(self.z_ref + step, 0, 3)
@@ -293,6 +300,7 @@ class MujocoSim:
             # self.data.ctrl = self.controller.pos_control_algorithm(self.state, keyboard_input_ref, self.yaw_ref)
 
             self.cam.lookat = body_pos 
+            # self.cam.azimuth = np.degrees(euler[2])
             if self.joystick is not None:
                 self.wireless_control(body_pos)
             
@@ -302,10 +310,10 @@ class MujocoSim:
             
             
             # print(body_pos)
-
-            # self.data.ctrl = self.controller.pos_control_algorithm(self.state, self.pos_ref, self.yaw_ref)
-            # print(euler[2])
-            self.data.ctrl = self.controller.vel_control_algorithm(self.state, np.array([self.vx_ref, self.vy_ref]), 1.0, self.yaw_ref)
+            self.pos_ref = np.array([self.x_ref, self.y_ref, self.z_ref])
+            # self.vel_ref = np.array([self.vx_ref, self.vy_ref])
+            self.data.ctrl = self.controller.pos_control_algorithm(self.state, self.pos_ref, self.yaw_ref)
+            # self.data.ctrl = self.controller.vel_control_algorithm(self.state, self.vel_ref, 1.0, self.yaw_ref)
 
             self.temp = euler
             self.counter += 1

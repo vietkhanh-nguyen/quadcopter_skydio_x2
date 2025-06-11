@@ -6,7 +6,7 @@ import mujoco as mj
 from mujoco.glfw import glfw
 import numpy as np
 import os
-from controls.quadcoper_controller import QuadcopterPIDController
+from controls.quadcopter_controller import QuadcopterPIDController
 from controls.leader_follower_orca import LeaderFollowerController
 from scipy.spatial.transform import Rotation 
 import matplotlib.pyplot as plt
