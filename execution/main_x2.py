@@ -53,8 +53,11 @@ class MujocoSim:
 
         self.x_ref = 0.0
         self.y_ref = 0.0 
-        self.z_ref = 1.0
+        self.z_ref = 0.0
         self.yaw_ref = 0.0
+
+        self.keyboard_input_ref = np.zeros(5)
+        self.pos_ref = np.zeros(3)
 
         self.controller = QuadcopterPIDController(self.time_step)
 
@@ -221,6 +224,8 @@ class MujocoSim:
             if glfw.get_key(window, key) == glfw.PRESS:
                 approach_yaw(target_yaw)
                 break  # Only act on one yaw key at a time
+
+        self.keyboard_input_ref = np.array([self.x_ref, self.y_ref, self.z_ref, self.vx_ref, self.vy_ref])
     
     def set_up_wireless_controller(self):
         pygame.init()
@@ -295,7 +300,7 @@ class MujocoSim:
             euler = self.quat2euler(body_quat)
             self.state = np.concatenate([body_pos, euler, vel])
 
-            keyboard_input_ref= np.array([self.vx_ref, self.vy_ref, self.z_ref])
+            
             # print(self.state)
             # self.data.ctrl = self.controller.pos_control_algorithm(self.state, keyboard_input_ref, self.yaw_ref)
 
@@ -310,10 +315,11 @@ class MujocoSim:
             
             
             # print(body_pos)
+            
             self.pos_ref = np.array([self.x_ref, self.y_ref, self.z_ref])
             # self.vel_ref = np.array([self.vx_ref, self.vy_ref])
-            self.data.ctrl = self.controller.pos_control_algorithm(self.state, self.pos_ref, self.yaw_ref)
-            # self.data.ctrl = self.controller.vel_control_algorithm(self.state, self.vel_ref, 1.0, self.yaw_ref)
+            self.data.ctrl = self.controller.pos_control_algorithm(self.state, self.keyboard_input_ref[:3], self.yaw_ref)
+            # self.data.ctrl = self.controller.vel_control_algorithm(self.state, self.keyboard_input_ref[3:5], self.keyboard_input_ref[2], self.yaw_ref)
 
             self.temp = euler
             self.counter += 1

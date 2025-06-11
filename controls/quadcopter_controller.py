@@ -26,7 +26,7 @@ class QuadcopterPIDController:
         self.vehicle_mass_offset = 3.25
         self.Kp_t = 2
         self.Ki_t = 0
-        self.Kd_t = 5
+        self.Kd_t = 2
         self.int_t = 0
         self.prev_e_t = None
         self.prev_de_t = None
@@ -95,12 +95,13 @@ class QuadcopterPIDController:
         self.prev_de_y = de
         return self.Kp_y * e + self.Ki_y * self.int_y + self.Kd_y * de
 
-    def thrust_controller(self, e):
+    def thrust_controller(self, e, de):
         if self.prev_e_t is None:
             self.prev_e_t = e
             self.prev_de_t = np.zeros_like(e)
-        raw_de = (e - self.prev_e_t) / self.dt
-        de = self.low_pass_filter(raw_de, self.prev_de_t)
+        if de is None:
+            raw_de = (e - self.prev_e_t) / self.dt
+            de = self.low_pass_filter(raw_de, self.prev_de_t)
         self.int_t += e * self.dt
         self.prev_e_t = e
         self.prev_de_t = de
@@ -159,8 +160,7 @@ class QuadcopterPIDController:
         vel_world = np.array([v_x, v_y])
         vel_body = R_world_to_body @ vel_world.reshape(2, 1)
         pitch_ref, roll_ref  = self.position_controller(pos_error_body.reshape(-1), -vel_body.reshape(-1))
-        # pitch_ref, roll_ref  = self.position_controller(pos_error_body.reshape(-1))
-        u_thrust = self.thrust_controller(altitude_ref - z)
+        u_thrust = self.thrust_controller(altitude_ref - z, -v_z)
         u_roll = self.roll_controller(roll_ref - roll)
         u_pitch = self.pitch_controller(pitch_ref - pitch)
         u_yaw = self.yaw_controller(yaw_ref-yaw) if yaw_ref is not None else self.yaw_controller(-yaw)
