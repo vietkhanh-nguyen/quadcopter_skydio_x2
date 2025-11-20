@@ -1,4 +1,0 @@
-quadcopter control architecture
-    path planning - RRT - Dubins: Not Done
-    controller - PID: Done
-    Observer - Kalman filter: Not Done

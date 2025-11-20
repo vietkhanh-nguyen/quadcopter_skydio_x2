@@ -9,7 +9,6 @@ import os
 from controls.quadcopter_controller import QuadcopterPIDController
 from scipy.spatial.transform import Rotation 
 import matplotlib.pyplot as plt
-import pygame
 
 class MujocoSim:
 
@@ -215,18 +214,6 @@ class MujocoSim:
                 break  # Only act on one yaw key at a time
 
         self.keyboard_input_ref = np.array([self.x_ref, self.y_ref, self.z_ref, self.vx_ref, self.vy_ref])
-    
-    def set_up_wireless_controller(self):
-        pygame.init()
-        pygame.joystick.init()
-        joystick_count = pygame.joystick.get_count()
-        if joystick_count == 0:
-            print("No joystick detected!")
-            self.joystick = None
-        else:
-            self.joystick = pygame.joystick.Joystick(0)
-            self.joystick.init()
-            print("Joystick initialized:", self.joystick.get_name())
 
     def quat2euler(self, quat_mujoco, degrees=False):
         # scipy quat = [x, y, z, constant]
@@ -236,39 +223,8 @@ class MujocoSim:
         euler = r.as_euler('xyz', degrees=degrees)
         return euler
         
-        
-    def wireless_control(self, body_pos):
-            
-            def round_to_step(val, step=0.05):
-                if val > 0:
-                    return np.floor(val / step) * step
-                else:
-                    return np.ceil(val / step) * step
-                
-            pygame.event.pump()
-            left_x = round_to_step(self.joystick.get_axis(0))
-            left_y = round_to_step(self.joystick.get_axis(1))
-            hat_x, hat_y = self.joystick.get_hat(0)
-            cross = self.joystick.get_button(0)
-
-            self.pos_ref[0] -= .025*left_y
-            self.pos_ref[1] -= .025*left_x
-            self.pos_ref[2] += .025*hat_y
-
-
-            
-            right_x = round_to_step(self.joystick.get_axis(3))
-            right_y = round_to_step(self.joystick.get_axis(4))
-            self.cam.azimuth -= right_x 
-            self.cam.elevation -= right_y
-
-            if cross == 1:
-                self.cam.azimuth = 0
-                self.cam.elevation = -25
-
     def main_loop(self):
         self.set_up_ui()
-        self.set_up_wireless_controller()
 
         
 
@@ -295,9 +251,6 @@ class MujocoSim:
 
             self.cam.lookat = body_pos 
             # self.cam.azimuth = np.degrees(euler[2])
-            if self.joystick is not None:
-                self.wireless_control(body_pos)
-            
 
             # Get position from data.sensordata
             # Each sensor contributes a fixed number of floats (3 for framepos)

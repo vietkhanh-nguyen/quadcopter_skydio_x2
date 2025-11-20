@@ -94,6 +94,7 @@ def save_multi_drone_xml(filename, num_drones):
     {sensors_xml}
   </sensor>
 </mujoco>"""
+    
 
     if os.path.exists(filename):
         os.remove(filename)
@@ -103,5 +104,9 @@ def save_multi_drone_xml(filename, num_drones):
     with open(filename, "w") as f:
         f.write(base_xml)
 
+
+    print("File created successfully")
+
 # Generate and save
-save_multi_drone_xml("mjcf/multiple_x22.xml", num_drones=5)
+if __name__ == "__main__":
+  save_multi_drone_xml("mjcf/multiple_x22.xml", num_drones=5)
