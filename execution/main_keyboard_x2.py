@@ -134,7 +134,7 @@ class MujocoSim:
         # Init GLFW, create window, make OpenGL context current, request v-sync
         glfw.init()
         glfw.window_hint(glfw.DECORATED, glfw.TRUE)
-        self.window = glfw.create_window(1200, 900, "Demo", None, None)
+        self.window = glfw.create_window(1200, 900, "Quadcopter control using keyboard", None, None)
         glfw.make_context_current(self.window)
         glfw.swap_interval(1)
 

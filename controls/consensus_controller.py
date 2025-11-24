@@ -30,7 +30,6 @@ class MultiAgentConsensus:
         elif self.graph_type == "universal_rigid":
             num_edges, A_graph = build_universal_rigid_graph(self.n_agents, self.dim_state)
             self.num_edges = num_edges
-            print(num_edges)
         else:
             raise ValueError("graph_type must be 'complete' or 'universal_rigid'.")
         # Ma trận Laplacian
@@ -49,7 +48,6 @@ class MultiAgentConsensus:
         norm = np.linalg.norm(diff, axis=2, keepdims=True)
         norm = np.where(norm == 0, 1e-9, norm)   # avoid divide-by-zero
         self.dir_ref = diff / norm
-        print(self.dir_ref[1, 0, :])
         self.X_ref = X_ref
 
     def projection_matrix(self, gij):
@@ -62,7 +60,6 @@ class MultiAgentConsensus:
         dist_matrix = np.linalg.norm(diff_matrix, axis=2, keepdims=True)
         dist_matrix = np.where(dist_matrix == 0, 1e-9, dist_matrix)   # avoid divide-by-zero
         dir_cur = diff_matrix / dist_matrix
-        # print(dist_matrix.shape)
         dist_matrix = dist_matrix.reshape(self.n_agents, self.n_agents)
 
         u = np.zeros((self.n_agents, self.dim_state)) 

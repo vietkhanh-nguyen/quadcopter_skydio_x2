@@ -105,7 +105,7 @@ def save_multi_drone_xml(filename, num_drones):
         f.write(base_xml)
 
 
-    print("File created successfully")
+    print(f"{num_drones} are added to the scene successfully")
 
 # Generate and save
 if __name__ == "__main__":

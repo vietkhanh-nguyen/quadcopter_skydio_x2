@@ -6,7 +6,16 @@ from path_planning.a_star_search import path_finding
 
 class ScenarioBearingbasedConsensus:
 
+    def __init__(self):
+        self.name = "Drones Formation using Bearing-based Consensus Algorithm"
+
     def init(self, sim):
+
+        sim.cam.azimuth = -0.87
+        sim.cam.elevation = -25
+        sim.cam.distance =  12
+        sim.cam.lookat =np.array([ 0.0 , 0.0 , 0.0 ])
+        
         path = path_finding()
         if path is None:
             path = sim.pos_ref
@@ -34,6 +43,7 @@ class ScenarioBearingbasedConsensus:
                 self.tracking_flag = True
 
         sim.cam.lookat = X.mean(axis=0)
+        sim.cam.azimuth += 0.1
 
         if self.tracking_flag:
             control_consensus = self.formation_controller.consensus_law(X)

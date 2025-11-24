@@ -8,6 +8,9 @@ class ScenarioDroneTracking:
     Scenario for single-drone altitude tracking + path following.
     """
 
+    def __init__(self):
+        self.name = "Drone Tracking Trajectory"
+
     def init(self, sim):
         """
         Initialize controller and tracking references.

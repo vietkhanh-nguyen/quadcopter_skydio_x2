@@ -1,7 +1,4 @@
-import sys
 import os
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-
 import mujoco as mj
 from mujoco.glfw import glfw
 import numpy as np
@@ -10,7 +7,7 @@ from scipy.spatial.transform import Rotation
 
 class MujocoSim:
 
-    def __init__(self, xml_name, num_drones, simulation_time, fps, scenario, plot):
+    def __init__(self, xml_name, num_drones, simulation_time, time_step, fps, scenario, plot):
 
         #get the full path
         dirname = os.path.dirname(__file__)
@@ -24,6 +21,8 @@ class MujocoSim:
         self.xml_path = abspath
         self.simulation_time = simulation_time
         self.fps = fps
+        if time_step is not None:
+            self.model.opt.timestep = time_step
         self.time_step = self.model.opt.timestep
 
         # Tracking state
@@ -118,7 +117,7 @@ class MujocoSim:
         # Init GLFW, create window, make OpenGL context current, request v-sync
         glfw.init()
         glfw.window_hint(glfw.DECORATED, glfw.TRUE)
-        self.window = glfw.create_window(1200, 900, "Demo", None, None)
+        self.window = glfw.create_window(1200, 900, self.scenario.name, None, None)
         glfw.make_context_current(self.window)
         glfw.swap_interval(1)
 
@@ -141,11 +140,7 @@ class MujocoSim:
         glfw.set_mouse_button_callback(self.window, mouse_button)
         glfw.set_scroll_callback(self.window, scroll)
 
-        # Example on how to set camera configuration
-        self.cam.azimuth = -0.87
-        self.cam.elevation = -25
-        self.cam.distance =  12
-        self.cam.lookat =np.array([ 0.0 , 0.0 , 0.0 ])
+
         
 
     def main_loop(self):
@@ -163,13 +158,11 @@ class MujocoSim:
 
         #initialize the controller
         init_controller(self.model,self.data)
-
         #set the controller
         mj.set_mjcb_control(controller)
 
         while not glfw.window_should_close(self.window):
             time_prev = self.data.time
-
             while (self.data.time - time_prev < 1.0/60.0):
                 self.counter += 1
                 mj.mj_step(self.model, self.data)
