@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation, PillowWriter
 import matplotlib.animation as animation
 from mpl_toolkits.mplot3d import Axes3D 
-from utilities.gen_graph import build_universal_rigid_graph, gen_icosahedron, gen_sphere
+from utilities.gen_multi_agent_graph import build_universal_rigid_graph, gen_icosahedron, gen_sphere
 
 
 import numpy as np

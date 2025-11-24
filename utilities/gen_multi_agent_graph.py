@@ -1,7 +1,4 @@
 import numpy as np
-import random
-
-import numpy as np
 
 def build_universal_rigid_graph(n, d):
     """

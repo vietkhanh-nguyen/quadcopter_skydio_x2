@@ -5,15 +5,12 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 import mujoco as mj
 from mujoco.glfw import glfw
 import numpy as np
-from controls.quadcopter_controller import QuadcopterPIDController
-from controls.pure_pursuit import PurePursuit
+import os
 from scipy.spatial.transform import Rotation 
-from scripts.build_map import build_map_summary
-from path_planning.a_star_search import path_finding
-from plots.my_plot import plot_sim_1_drone
+
 class MujocoSim:
 
-    def __init__(self, xml_name, simulation_time, fps):
+    def __init__(self, xml_name, num_drones, simulation_time, fps, scenario, plot):
 
         #get the full path
         dirname = os.path.dirname(__file__)
@@ -24,14 +21,13 @@ class MujocoSim:
         self.data = mj.MjData(self.model)                # MuJoCo data
         self.cam = mj.MjvCamera()                        # Abstract camera
         self.opt = mj.MjvOption()                        # visualization options
-
         self.xml_path = abspath
         self.simulation_time = simulation_time
         self.fps = fps
         self.time_step = self.model.opt.timestep
 
         # Tracking state
-        self.tracked_data = []
+        self.frames = None
         self.state = None
         self.temp = None
 
@@ -46,10 +42,15 @@ class MujocoSim:
         self.lastx = 0
         self.lasty = 0
 
-        # Controller init
-        self.yaw_ref = 0.0
-        self.pos_ref = np.array([0, 0, 5])
-        self.controller = QuadcopterPIDController(self.time_step)
+        self.counter = 0
+        self.num_drones = num_drones
+
+        # Set up scenario
+        self.scenario = scenario
+        self.plot = plot
+
+        
+
 
     def set_up_ui(self):
 
@@ -60,8 +61,6 @@ class MujocoSim:
                     mj.mj_forward(self.model, self.data)
                 elif key == glfw.KEY_ESCAPE:
                     glfw.set_window_should_close(window, True)
-                
-            self.keyboard_control(window)
 
         def mouse_button(window, button, act, mods):
             self.button_left = (glfw.get_mouse_button(
@@ -143,70 +142,23 @@ class MujocoSim:
         glfw.set_scroll_callback(self.window, scroll)
 
         # Example on how to set camera configuration
-        self.cam.azimuth = 0
+        self.cam.azimuth = -0.87
         self.cam.elevation = -25
-        self.cam.distance =  3
-        self.cam.lookat = np.array([ 0.0 , 0.0 , 0.0 ])
-
-    def quat2euler(self, quat_mujoco, degrees=False):
-        # scipy quat = [x, y, z, constant]
-        # mujoco quat = [constant, x, y, z]
-        quat_scipy = np.array([quat_mujoco[1], quat_mujoco[2], quat_mujoco[3], quat_mujoco[0]]) 
-        r = Rotation.from_quat(quat_scipy)
-        euler = r.as_euler('xyz', degrees=degrees)
-        return euler
+        self.cam.distance =  12
+        self.cam.lookat =np.array([ 0.0 , 0.0 , 0.0 ])
         
+
     def main_loop(self):
         self.set_up_ui()
 
         
 
         def init_controller(model,data):
-            path = path_finding()
-            if path is None:
-                path = self.pos_ref
-            self.path_tracking = PurePursuit(look_ahead_dist=5, waypoints=path)
-            self.tracking_flag = False
-            self.altitude_ref_init = 5
+            self.scenario.init(self)
+
 
         def controller(model, data):
-            #put the controller here. This function is called inside the simulation.]\
-            
-            # constant = 3.25
-            # data.ctrl[:] = np.array([constant, constant, constant, constant])
-            body_pos = np.array(data.sensor('body_pos').data)
-            body_quat = np.array(data.sensor('body_quat').data)
-            body_linvel = data.sensor('body_linvel').data
-            body_angvel = data.sensor('body_gyro').data
-            vel = np.hstack((body_linvel, body_angvel))
-            euler = self.quat2euler(body_quat)
-            self.state = np.concatenate([body_pos, euler, vel])
-
-            
-            self.cam.lookat = body_pos 
-
-            if np.abs(body_pos[2] - self.altitude_ref_init) < 0.05:
-                self.tracking_flag = True
-
-            if self.tracking_flag:
-                pos_ref = self.path_tracking.look_ahead_point(body_pos)
-            else:
-                pos_ref = body_pos
-                pos_ref[2] = self.altitude_ref_init
-            self.data.ctrl = self.controller.pos_control_algorithm(self.state, pos_ref, self.yaw_ref)
-
-            
-            # self.cam.azimuth = np.degrees(euler[2])
-
-            # Get position from data.sensordata
-            # Each sensor contributes a fixed number of floats (3 for framepos)
-            
-
-            self.temp = euler
-
-        def tracking():
-            self.tracked_data.append(self.state)
-
+            self.scenario.update(self, model, data)
 
 
         #initialize the controller
@@ -219,11 +171,10 @@ class MujocoSim:
             time_prev = self.data.time
 
             while (self.data.time - time_prev < 1.0/60.0):
+                self.counter += 1
                 mj.mj_step(self.model, self.data)
 
-            tracking()
-
-            if (self.data.time>=self.simulation_time):
+            if (self.data.time>=self.simulation_time):               
                 break
 
             # get framebuffer viewport
@@ -248,14 +199,6 @@ class MujocoSim:
             glfw.poll_events()
 
         glfw.terminate()
-        plot_sim_1_drone(self.tracked_data, self.data.time)
-
-if __name__ == "__main__":
-    xml_path = '../mjcf/scene.xml' #xml file (assumes this is in the same folder as this file)
-    simulation_time = 100 #simulation time
-    build_map_summary()
-    sim = MujocoSim(xml_path, simulation_time, fps=60)
-    sim.main_loop()
 
 
 

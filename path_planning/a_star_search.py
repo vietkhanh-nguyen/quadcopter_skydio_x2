@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 from scipy.ndimage import binary_dilation
 from path_planning.a_star_obj import OpenList, ClosedList, AStarNode, Stack, NodeGrid3D
 from path_planning.env import MapGridEnvironment3D
-from scripts.build_map import generate_city_environment
+from utilities.build_map import generate_city_environment
 
 class AStartSearch3D:
 

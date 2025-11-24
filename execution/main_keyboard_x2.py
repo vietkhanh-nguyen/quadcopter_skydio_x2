@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 
 class MujocoSim:
 
-    def __init__(self, xml_name, simulation_time, fps):
+    def __init__(self, xml_name, num_drones, simulation_time, fps, scenario, plot):
 
         #get the full path
         dirname = os.path.dirname(__file__)
@@ -45,6 +45,11 @@ class MujocoSim:
         self.lastx = 0
         self.lasty = 0
 
+
+        # Set up scenario
+        self.scenario = scenario
+        self.plot = plot
+
         self.counter = 0
 
         self.vx_ref = 0.0
@@ -59,6 +64,7 @@ class MujocoSim:
         self.pos_ref = np.zeros(3)
 
         self.controller = QuadcopterPIDController(self.time_step)
+
 
     def set_up_ui(self):
 
@@ -191,9 +197,11 @@ class MujocoSim:
         elif glfw.get_key(window, glfw.KEY_COMMA) == glfw.PRESS:
             self.z_ref = np.clip(self.z_ref - step, 0, 3)
 
-        if glfw.get_key(window, glfw.KEY_KP_0) == glfw.PRESS:
+        if glfw.get_key(window, glfw.KEY_SPACE) == glfw.PRESS:
             self.vx_ref = 0
             self.vy_ref = 0
+            self.z_ref = 0
+
 
         # Yaw control targets
         yaw_targets = {
@@ -214,14 +222,6 @@ class MujocoSim:
                 break  # Only act on one yaw key at a time
 
         self.keyboard_input_ref = np.array([self.x_ref, self.y_ref, self.z_ref, self.vx_ref, self.vy_ref])
-
-    def quat2euler(self, quat_mujoco, degrees=False):
-        # scipy quat = [x, y, z, constant]
-        # mujoco quat = [constant, x, y, z]
-        quat_scipy = np.array([quat_mujoco[1], quat_mujoco[2], quat_mujoco[3], quat_mujoco[0]]) 
-        r = Rotation.from_quat(quat_scipy)
-        euler = r.as_euler('xyz', degrees=degrees)
-        return euler
         
     def main_loop(self):
         self.set_up_ui()
@@ -242,15 +242,15 @@ class MujocoSim:
             body_linvel = data.sensor('body_linvel').data
             body_angvel = data.sensor('body_gyro').data
             vel = np.hstack((body_linvel, body_angvel))
-            euler = self.quat2euler(body_quat)
-            self.state = np.concatenate([body_pos, euler, vel])
+            euler = self.controller.quat2euler(body_quat)
+            self.state = np.concatenate([body_pos, body_quat, vel])
 
             
             # print(self.state)
             # self.data.ctrl = self.controller.pos_control_algorithm(self.state, keyboard_input_ref, self.yaw_ref)
 
             self.cam.lookat = body_pos 
-            # self.cam.azimuth = np.degrees(euler[2])
+            self.cam.azimuth = np.degrees(euler[2])
 
             # Get position from data.sensordata
             # Each sensor contributes a fixed number of floats (3 for framepos)
@@ -261,7 +261,7 @@ class MujocoSim:
             self.pos_ref = np.array([self.x_ref, self.y_ref, self.z_ref])
             # self.vel_ref = np.array([self.vx_ref, self.vy_ref])
             # self.data.ctrl = self.controller.pos_control_algorithm(self.state, self.keyboard_input_ref[:3], self.yaw_ref)
-            self.data.ctrl = self.controller.vel_control_algorithm(self.state, self.keyboard_input_ref[3:5], self.keyboard_input_ref[2], self.yaw_ref)
+            self.data.ctrl = self.controller.vel_body_control_algorithm(self.state, self.keyboard_input_ref[3:5], self.keyboard_input_ref[2], self.yaw_ref)
 
             self.temp = euler
             self.counter += 1
@@ -352,8 +352,9 @@ class MujocoSim:
 if __name__ == "__main__":
     xml_path = '../mjcf/scene.xml' #xml file (assumes this is in the same folder as this file)
     simulation_time = 100 #simulation time
-
-    sim = MujocoSim(xml_path, simulation_time, fps=60)
+    fps=60
+    num_drones = 1
+    sim = MujocoSim(xml_path, num_drones, simulation_time, fps, None, None)
     sim.main_loop()
 
 

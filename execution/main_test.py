@@ -10,13 +10,13 @@ from controls.quadcopter_controller import QuadcopterPIDController
 from controls.consensus_controller import MultiAgentConsensus
 from controls.pure_pursuit import PurePursuit
 from scipy.spatial.transform import Rotation 
-import matplotlib.pyplot as plt
-from scripts.multiple_drone_generate import save_multi_drone_xml
+from utilities.multiple_drone_generate import save_multi_drone_xml
 from path_planning.a_star_search import path_finding
+from scenario.scenario_bearing import ScenarioBearingbasedConsensus
 
 class MujocoSim:
 
-    def __init__(self, xml_name, num_drones, simulation_time, fps):
+    def __init__(self, xml_name, num_drones, simulation_time, fps, scenario):
 
         #get the full path
         dirname = os.path.dirname(__file__)
@@ -27,7 +27,6 @@ class MujocoSim:
         self.data = mj.MjData(self.model)                # MuJoCo data
         self.cam = mj.MjvCamera()                        # Abstract camera
         self.opt = mj.MjvOption()                        # visualization options
-
         self.xml_path = abspath
         self.simulation_time = simulation_time
         self.fps = fps
@@ -51,6 +50,9 @@ class MujocoSim:
 
         self.counter = 0
         self.num_drones = num_drones
+
+        # Set up scenario
+        self.scenario = scenario
 
         
 
@@ -178,12 +180,12 @@ class MujocoSim:
             self.controllers.append(QuadcopterPIDController(self.time_step))
             self.tracking_flag = False
             self.altitude_ref = 5*np.ones(self.num_drones)
-            pass
+            return
+            self.scenario.init(self)
 
 
         def controller(model, data):
             #put the controller here. This function is called inside the simulation.]\
-
             X = np.zeros((self.num_drones, 3))
             for id in range(self.num_drones):
                 pos = np.array(self.data.sensor(f'pos_{id}').data)
@@ -207,17 +209,18 @@ class MujocoSim:
                 body_linvel = self.data.sensor(f'vel_{id}').data
                 body_angvel = self.data.sensor(f'gyro_{id}').data
                 vel = np.hstack((body_linvel, body_angvel))
-                euler = self.quat2euler(body_quat)
-                state = np.concatenate([body_pos, euler, vel])
+                # euler = self.quat2euler(body_quat)
+                # state = np.concatenate([body_pos, euler, vel])
+                state = np.concatenate([body_pos, body_quat, vel])
                 self.altitude_ref[id] += control_consensus[id, 2]*.01
                 control_input = self.controllers[id].vel_control_algorithm(state, control_consensus[id, :2], self.altitude_ref[id])
                 
                 if id == 0 and self.tracking_flag:
                     
                     pos_ref = self.path_tracking.look_ahead_point(body_pos)
-                    control_follow_path = np.zeros_like(control_input)
-                    control_follow_path = self.controllers[-1].pos_control_algorithm(state, pos_ref)
-                    control_input += 0*control_follow_path
+                    # control_follow_path = np.zeros_like(control_input)
+                    # control_follow_path = self.controllers[-1].pos_control_algorithm(state, pos_ref)
+                    # control_input += 0*control_follow_path
                     # print(np.array(control_follow_path).shape)
                     # control_input = self.controllers[-1].pos_control_algorithm(state, pos_ref)
                     # print(control_input)
@@ -226,7 +229,8 @@ class MujocoSim:
                 for j in range(1, 5):
                     actuator_name = f"thrust{j}_{id}"
                     self.data.actuator(actuator_name).ctrl = control_input[j-1]
-            
+            return
+            self.scenario.update(self, model, data)
 
             
 
@@ -287,8 +291,11 @@ if __name__ == "__main__":
     xml_path = '../mjcf/scene_multiple_x2.xml'
     simulation_time = 1000 #simulation time
     num_drones = 12
+    fps = 60
     save_multi_drone_xml("mjcf/multiple_x2.xml", num_drones=num_drones)
-    sim = MujocoSim(xml_path, num_drones, simulation_time, fps=60)
+    scenario = ScenarioBearingbasedConsensus()
+    sim = MujocoSim(xml_path, num_drones, simulation_time, fps, scenario)
+    
     sim.main_loop()
 
 
