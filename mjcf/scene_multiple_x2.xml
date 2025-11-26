@@ -3,6 +3,7 @@
 
   <visual>
     <headlight diffuse="0.6 0.6 0.6" ambient="0.3 0.3 0.3" specular="0 0 0"/>
+    <map haze=".5" zfar="100" znear="0.01"/>
     <rgba haze="0.15 0.25 0.35 1"/>
     <global azimuth="-20" elevation="-20" ellipsoidinertia="true"/>
   </visual>
@@ -15,7 +16,7 @@
     <material name="obstacle_material" rgba="0.2 0.2 0.8 1" specular="0.5" shininess="0.6"/>
   </asset>
 
-  <!-- <option gravity="0 0 0"></option> -->
+  <!-- <option gravity="1 0 -10"></option> -->
   <include file="obstacles.xml"/>
   <include file="multiple_x2.xml"/>
 

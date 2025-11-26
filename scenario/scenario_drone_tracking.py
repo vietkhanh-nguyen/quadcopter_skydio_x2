@@ -11,11 +11,16 @@ class ScenarioDroneTracking:
     def __init__(self):
         self.name = "Drone Tracking Trajectory"
 
-    def init(self, sim):
+    def init(self, sim, model, data):
         """
         Initialize controller and tracking references.
         sim: MujocoSim object
         """
+
+        sim.cam.azimuth = 45.0 
+        sim.cam.elevation = -30.0
+        sim.cam.distance =  8.0
+
         # Plan path
         path = path_finding()
         if path is None:
@@ -34,6 +39,8 @@ class ScenarioDroneTracking:
 
         # Store state
         self.state = None
+
+        
 
     def update(self, sim, model, data):
         """

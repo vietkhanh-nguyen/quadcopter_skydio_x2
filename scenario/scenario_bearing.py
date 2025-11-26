@@ -9,7 +9,7 @@ class ScenarioBearingbasedConsensus:
     def __init__(self):
         self.name = "Drones Formation using Bearing-based Consensus Algorithm"
 
-    def init(self, sim):
+    def init(self, sim, model, data):
 
         sim.cam.azimuth = -0.87
         sim.cam.elevation = -25
@@ -45,6 +45,9 @@ class ScenarioBearingbasedConsensus:
         sim.cam.lookat = X.mean(axis=0)
         sim.cam.azimuth += 0.1
 
+        e_bearing = self.formation_controller.compute_bearing_error(X)
+        print(np.linalg.norm(e_bearing))
+
         if self.tracking_flag:
             control_consensus = self.formation_controller.consensus_law(X)
         else:
@@ -65,11 +68,6 @@ class ScenarioBearingbasedConsensus:
                 control_consensus[i, :2],
                 self.altitude_ref[i],
             )
-
-            # drone 0 follow path
-            if i == 0 and self.tracking_flag:
-                pos_ref = self.path_tracking.look_ahead_point(pos)
-                u += 0.0 * self.follow_controller.pos_control_algorithm(state, pos_ref)
 
             for j in range(4):
                 data.actuator(f"thrust{j+1}_{i}").ctrl = u[j]

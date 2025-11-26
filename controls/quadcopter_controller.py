@@ -65,6 +65,39 @@ class QuadcopterPIDController:
         euler = r.as_euler('xyz', degrees=degrees)
         return euler
     
+    def rpy_to_rotmat(self, euler_angle):
+        roll, pitch, yaw = euler_angle
+        cr = np.cos(roll)
+        sr = np.sin(roll)
+        cp = np.cos(pitch)
+        sp = np.sin(pitch)
+        cy = np.cos(yaw)
+        sy = np.sin(yaw)
+
+        Rx = np.array([[1, 0, 0],
+                    [0, cr, -sr],
+                    [0, sr, cr]])
+
+        Ry = np.array([[cp, 0, sp],
+                    [0, 1, 0],
+                    [-sp, 0, cp]])
+
+        Rz = np.array([[cy, -sy, 0],
+                    [sy,  cy, 0],
+                    [0,   0,  1]])
+
+        # World ← Body
+        R = Rz @ Ry @ Rx
+        return R
+    
+    def linear_acc_world(self, body_quat, body_acc, gravity=np.array([0, 0, -9.81])):
+        euler_angle = self.quat2euler(body_quat)
+        rot_matrix = self.rpy_to_rotmat(euler_angle)
+        acc_world = rot_matrix@body_acc
+        linear_acc_world = acc_world + gravity
+        return linear_acc_world
+
+    
     def normalize_angle(self, angle):
         return (angle + np.pi) % (2 * np.pi) - np.pi
 

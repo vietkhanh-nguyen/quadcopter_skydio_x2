@@ -1,3 +1,7 @@
+import sys
+import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation, PillowWriter
@@ -12,7 +16,7 @@ class MultiAgentConsensus:
     def __init__(self, n_agents=7, K=1, graph_type="complete", dim_state=3):
         self.n_agents = n_agents
         self.K = K/self.n_agents
-        self.impact_dis = 0.3
+        self.impact_dis = 2
         self.muy = (1 + self.impact_dis**4)/self.impact_dis**4
         # Initialize system matrices
         self.graph_type = graph_type
@@ -47,20 +51,24 @@ class MultiAgentConsensus:
         diff = X_ref[:, np.newaxis, :] - X_ref[np.newaxis, :, :]
         norm = np.linalg.norm(diff, axis=2, keepdims=True)
         norm = np.where(norm == 0, 1e-9, norm)   # avoid divide-by-zero
-        self.dir_ref = diff / norm
+        self.dir_ref = -diff / norm
         self.X_ref = X_ref
 
     def projection_matrix(self, gij):
-        gij = gij.reshape(-1,1)
-        eye_matrix = np.eye(self.dim_state)
-        return eye_matrix - gij@gij.transpose()
+        gij = np.asarray(gij).reshape(-1)
+        norm = np.linalg.norm(gij)
+        if norm == 0:
+            return np.eye(self.dim_state)  # or np.zeros((d,d)) depending on desired behavior
+        g = (gij / norm).reshape(-1,1)
+        return np.eye(self.dim_state) - g @ g.T
+    
     # ----------------------------------------------------------------------
     def consensus_law(self, X):
-        diff_matrix = X[:, np.newaxis, :] - X[np.newaxis, :, :]
+        diff_matrix = X[:, np.newaxis, :] - X[np.newaxis, :, :] # diff[i, j, :] = X[i, :] - X[j, :]
         dist_matrix = np.linalg.norm(diff_matrix, axis=2, keepdims=True)
         dist_matrix = np.where(dist_matrix == 0, 1e-9, dist_matrix)   # avoid divide-by-zero
-        dir_cur = diff_matrix / dist_matrix
-        dist_matrix = dist_matrix.reshape(self.n_agents, self.n_agents)
+        dir_cur = -diff_matrix / dist_matrix
+        # dist_matrix = dist_matrix.reshape(self.n_agents, self.n_agents)
 
         u = np.zeros((self.n_agents, self.dim_state)) 
         for i in range(self.n_agents):
@@ -77,6 +85,44 @@ class MultiAgentConsensus:
 
         return self.K*u
     
+    def consensus_leader_vel_varying_law(self, X, dX, ddX, kp=1, kv=2):
+        diff_matrix = X[:, np.newaxis, :] - X[np.newaxis, :, :]
+        dist_matrix = np.linalg.norm(diff_matrix, axis=2, keepdims=True)
+        dist_matrix = np.where(dist_matrix == 0, 1e-9, dist_matrix)   # avoid divide-by-zero
+        dist_matrix = dist_matrix.reshape(self.n_agents, self.n_agents)
+
+        u = np.zeros((self.n_agents, self.dim_state)) 
+        K_mat = np.zeros((self.n_agents, self.dim_state, self.dim_state)) 
+        for i in range(self.n_agents):
+
+            u_avoid_obs = np.zeros(self.dim_state)
+            for j in range(self.n_agents):
+
+                e = dist_matrix[i, j]**2 - self.impact_dis**2
+                if e <= 0 and i != j:
+                    dBij = (-4*self.muy*e)/(1 + e**2)**2 * diff_matrix[i, j, :]
+                    u_avoid_obs += dBij / (1 - self.muy*(e**2 / (1 + e**2)))
+
+                if self.A_graph[i, j] == 0:
+                    continue  
+                Pgij_ref = self.projection_matrix(self.dir_ref[i, j, :])
+                # u[i] += Pgij_ref@(kp*(X[i, :] - X[j, :]) + kv*(dX[i, :] - dX[j, :]) - ddX[j, :])
+                ep = X[i, :] - X[j, :]
+                # u[i] += Pgij_ref@(kp*np.sign(ep)*np.abs(ep)**.5 + kv*(dX[i, :] - dX[j, :]) - ddX[j, :])
+                norm = np.linalg.norm(ep)
+                # Choose vector based on norm
+                if norm > 1:
+                    vec = ep
+                else:
+                    if norm > 1e-12:  # avoid division by zero
+                        vec = ep / norm
+                    else:
+                        vec = np.zeros_like(ep)  # if X[i]==X[j]
+                u[i] += Pgij_ref@(kp*vec + kv*(dX[i, :] - dX[j, :]) - ddX[j, :])
+                K_mat[i, :, :] += Pgij_ref
+            u[i] = -np.linalg.pinv(K_mat[i, :, :]) @ u[i] + 2*u_avoid_obs
+        return self.K*u
+    
     def avoid_collision_law(self, dist_matrix, X, i):
         dB = np.zeros(self.dim_state)
         for j in range(self.n_agents):
@@ -90,19 +136,27 @@ class MultiAgentConsensus:
                 dB += dBij / (1 - muy*(e**2 / (1 + e**2)))
         return dB
 
-    # ----------------------------------------------------------------------
-    def simulate(self, x0, dt, T):
-        self.dt = dt
-        self.T = T
-        self.n_steps = int(T / dt)
-        self.X = np.zeros((self.n_agents, self.dim_state, self.n_steps))
-        self.X[:, :, 0] = x0
-
-        # Euler integration
-        for k in range(self.n_steps - 1):
-            delta_p = self.consensus_law(self.X[:, :, k])       # tính lực đồng thuận
-            # delta_p[:2] += np.array([1, 0])
-            self.X[:, :, k+1] = self.X[:, :, k] + self.dt * delta_p
+    def compute_bearing_error(self, X):
+        """
+        Compute bearing errors for all agents.
+        
+        Args:
+            X: (n_agents, dim_state) array of positions
+            dir_ref: (n_agents, n_agents, dim_state) array of reference bearings g^*_ij
+        
+        Returns:
+            e_bearing: (n_agents, n_agents, dim_state) array of bearing errors
+                        e_bearing[i, j, :] = P_{g^*_ij} @ (X[i] - X[j])
+        """
+        e_bearing = np.zeros((self.n_agents, self.n_agents, self.dim_state))
+        
+        for i in range(self.n_agents):
+            for j in range(self.n_agents):
+                if i == j:
+                    continue  # skip self
+                e_bearing[i, j, :] = self.projection_matrix(self.dir_ref[i, j, :]) @ (X[i] - X[j])
+        
+        return e_bearing
 
 
     # ----------------------------------------------------------------------
@@ -143,9 +197,10 @@ class MultiAgentConsensus:
         plt.tight_layout()
         plt.show()
 
-    def plot_gif_3d(self, max_frames=100):
+    def plot_gif_3d(self, T, dt, max_frames=100):
         """Animate and export the consensus evolution in 3D for all agents."""
         from mpl_toolkits.mplot3d import Axes3D
+        self.n_steps = int(T / dt)
 
         fig = plt.figure(figsize=(8, 7))
         ax = fig.add_subplot(111, projection='3d')
@@ -209,7 +264,7 @@ class MultiAgentConsensus:
         anim = animation.FuncAnimation(fig, update, init_func=init,
                                     frames=frames, interval=50, blit=True)
 
-        filename = "consensus_evolution_3d.gif"
+        filename = "outputs/consensus_evolution_3d.gif"
         writer = animation.PillowWriter(fps=20)
         anim.save(filename, writer=writer)
         print(f"✅ 3D GIF saved as {filename}")
@@ -217,7 +272,7 @@ class MultiAgentConsensus:
         plt.close(fig)
 
 
-    def plot_gif(self, max_frames=100):
+    def plot_gif(self, T, dt, max_frames=100):
         """Animate and export the consensus evolution in the x1–x2 plane for all agents."""
         fig, ax = plt.subplots(figsize=(8, 6))
 
@@ -270,7 +325,7 @@ class MultiAgentConsensus:
             fig, update, init_func=init, frames=frames, interval=30, blit=True
         )
 
-        filename = "consensus_evolution.gif"
+        filename = "outputs/consensus_evolution.gif"
         writer = animation.PillowWriter(fps=30)
         anim.save(filename, writer=writer)
         print(f"✅ GIF saved as {filename}")
@@ -332,61 +387,164 @@ class MultiAgentConsensus:
 # ----------------------------------------------------------------------
 if __name__ == "__main__":
     import time
+    import numpy as np
 
-    # Parameters
-    n_agents = 12
-    dim_state = 3    # sphere mode
-    K = 2
-    dt = 0.02        # integration step
-    T = 10.0          # total simulation time (seconds)
-    make_gif = True  # set True to save GIF (may be slow)
+    # Simulation parameters
+    n_agents = 8           # total agents (including 2 leaders)
+    dim_state = 3
+    K = 1
+    dt = 0.02
+    T = 200.0               # total sim time (seconds)
+    kp = 10.0
+    kv = 20.0
 
-    # Reproducible randomness
-    np.random.seed(12)
-
-    # Create simulator
+    # Create simulator (your MultiAgentConsensus class must be in scope)
     sim = MultiAgentConsensus(
         n_agents=n_agents,
         K=K,
-        graph_type="universal_rigid",
+        graph_type="complete",
         dim_state=dim_state
     )
 
-    # Build initial condition x0:
+    # --- Initial Condition ---
     # start agents near their reference positions with a small random perturbation
-    # shape -> (n_agents, dim_state)
-    perturb_scale = 0.06
-    x0 = sim.X_ref + perturb_scale * np.random.randn(sim.n_agents, sim.dim_state)
+    np.random.seed(12)
+    x0 = sim.X_ref + 0.06 * np.random.randn(n_agents, dim_state)
 
-    # Optionally re-normalize to lie near the sphere surface (if desired)
-    # This keeps them around radius 1 but perturbed radially too.
-    radii = np.linalg.norm(x0, axis=1, keepdims=True)
-    radii = np.where(radii == 0, 1e-9, radii)
-    x0 = x0 / radii  # project back to unit sphere
-    x0 = x0 + 0.02 * np.random.randn(*x0.shape)  # small off-surface perturb
+    # Ensure leaders start at their commanded positions (override for agents 0 and 1)
+    def leader0_position(t):
+        # translation leader: circular along x-axis (only x moves)
+        return np.array([
+            1.5 * np.cos(0.4 * t),
+            0.9 * np.sin(0.2 * t),
+            0.2 * np.sin(0.15 * t)
+        ])
 
-    print("Starting simulation with:")
-    print(f"  n_agents = {sim.n_agents}, dim_state = {sim.dim_state}")
-    print(f"  dt = {dt}, T = {T}, steps = {int(T/dt)}")
-    print("  initial pos sample (first agent):", x0[0])
+    def leader0_velocity(t):
+        return np.array([
+            -1.5 * 0.4 * np.sin(0.4 * t),
+            0.9 * 0.2 * np.cos(0.2 * t),
+            0.2 * 0.15 * np.cos(0.15 * t)
+        ])
 
-    # Run simulation
+    def leader0_acceleration(t):
+        return np.array([
+            -1.5 * (0.4**2) * np.cos(0.4 * t),
+            -0.9 * (0.2**2) * np.sin(0.2 * t),
+            -0.2 * (0.15**2) * np.sin(0.15 * t)
+        ])
+
+    # Leader 1 controls scale by moving on the x-axis relative to leader 0
+    # base distance r01_ref is the reference distance between ref nodes 0 and 1
+    r01_ref = np.linalg.norm(sim.X_ref[1] - sim.X_ref[0])
+
+    # We'll make leader1 vary its distance from leader0 to command scale s(t)
+    def leader1_scale_and_derivs(t):
+        # scale s(t) = 1 + 0.4*sin(0.08 t)  (example)
+        s = 1.0 
+        sd = 0
+        sdd = 0
+        return s, sd, sdd
+
+    def leader1_position(t):
+        # place leader1 on x-axis at distance s(t)*r01_ref from leader0
+        s, _, _ = leader1_scale_and_derivs(t)
+        p0 = leader0_position(t)
+        # direction from leader0->ref1 (in reference configuration)
+        ref_dir = sim.X_ref[1] - sim.X_ref[0]
+        ref_dir_norm = np.linalg.norm(ref_dir)
+        if ref_dir_norm < 1e-9:
+            ref_unit = np.array([1.0, 0.0, 0.0])
+        else:
+            ref_unit = ref_dir / ref_dir_norm
+        return p0 + (s * r01_ref) * ref_unit
+
+    def leader1_velocity(t):
+        # v1 = v0 + s_dot * r01_ref * ref_unit  (approx, ignoring ref_unit rotation)
+        s, sd, _ = leader1_scale_and_derivs(t)
+        v0 = leader0_velocity(t)
+        ref_dir = sim.X_ref[1] - sim.X_ref[0]
+        ref_dir_norm = np.linalg.norm(ref_dir)
+        if ref_dir_norm < 1e-9:
+            ref_unit = np.array([1.0, 0.0, 0.0])
+        else:
+            ref_unit = ref_dir / ref_dir_norm
+        return v0 + sd * r01_ref * ref_unit
+
+    def leader1_acceleration(t):
+        # a1 = a0 + s_ddot * r01_ref * ref_unit
+        _, _, sdd = leader1_scale_and_derivs(t)
+        a0 = leader0_acceleration(t)
+        ref_dir = sim.X_ref[1] - sim.X_ref[0]
+        ref_dir_norm = np.linalg.norm(ref_dir)
+        if ref_dir_norm < 1e-9:
+            ref_unit = np.array([1.0, 0.0, 0.0])
+        else:
+            ref_unit = ref_dir / ref_dir_norm
+        return a0 + sdd * r01_ref * ref_unit
+
+    # Allocate state arrays
+    n_steps = int(T / dt)
+    sim.X = np.zeros((n_agents, dim_state, n_steps))
+    dX = np.zeros_like(sim.X)      # velocities
+    ddX = np.zeros_like(sim.X)     # accelerations
+
+    # set initial states: followers from x0, leaders overwritten with leader positions at t=0
+    sim.X[:, :, 0] = x0
+    sim.X[0, :, 0] = leader0_position(0.0)
+    sim.X[1, :, 0] = leader1_position(0.0)
+    dX[0, :, 0] = leader0_velocity(0.0)
+    dX[1, :, 0] = leader1_velocity(0.0)
+    ddX[0, :, 0] = leader0_acceleration(0.0)
+    ddX[1, :, 0] = leader1_acceleration(0.0)
+
+    # --- Simulation Loop ---
+    print("Running follower simulation with two leaders (translation + scale)...")
     t0 = time.time()
-    sim.simulate(x0, dt, T)
+    leader_indices = (0, 1)
+
+    for k in range(n_steps - 1):
+        t = k * dt
+
+        # 1) Set both leaders' states at time t
+        sim.X[0, :, k] = leader0_position(t)
+        dX[0, :, k] = leader0_velocity(t)
+        ddX[0, :, k] = leader0_acceleration(t)
+
+        sim.X[1, :, k] = leader1_position(t)
+        dX[1, :, k] = leader1_velocity(t)
+        ddX[1, :, k] = leader1_acceleration(t)
+
+        # 2) Compute accelerations (commands) for all agents using the consensus law
+        #    (followers will use the leaders' ddX as feedforward terms)
+        u = sim.consensus_leader_vel_varying_law(sim.X[:, :, k], dX[:, :, k], ddX[:, :, k], kp=kp, kv=kv)
+
+        # 3) Integrate followers only (agents 2..n_agents-1). Leaders follow their own trajectories.
+        for i in range(2, n_agents):
+            # treat u[i] as acceleration command: ddX
+            ddX[i, :, k] = u[i]
+
+            # semi-implicit Euler integration (stable for second-order systems)
+            dX[i, :, k+1] = dX[i, :, k] + dt * ddX[i, :, k]
+            sim.X[i, :, k+1] = sim.X[i, :, k] + dt * dX[i, :, k+1]
+
+        # 4) propagate leaders to next time step using their analytic trajectories
+        sim.X[0, :, k+1] = leader0_position((k+1)*dt)
+        dX[0, :, k+1] = leader0_velocity((k+1)*dt)
+        ddX[0, :, k+1] = leader0_acceleration((k+1)*dt)
+
+        sim.X[1, :, k+1] = leader1_position((k+1)*dt)
+        dX[1, :, k+1] = leader1_velocity((k+1)*dt)
+        ddX[1, :, k+1] = leader1_acceleration((k+1)*dt)
+
+        # Optional: simple safety / debug checks (uncomment if you want to monitor)
+        # if np.any(~np.isfinite(sim.X[:, :, k+1])):
+        #     print("Non-finite state detected at step", k)
+        #     break
+
     t1 = time.time()
     print(f"Simulation finished in {t1 - t0:.2f} s")
 
-    # Plot final trajectories (2D projection onto x-y plane)
-    sim.plot()
+    # Plot 3D trajectories
+    sim.plot_gif_3d(T, dt, max_frames=200)
 
-    # Plot reference on sphere (requires dim_state == 3)
-    # try:
-    #     sim.plot_Xref()
-    # except ValueError:
-    #     pass
-
-    # Optionally save an animated GIF of the trajectories (may be slow)
-    # if make_gif:
-    #     print("Saving GIF (this may take a while)...")
-    #     sim.plot_gif_3d(max_frames=200)
-    #     print("GIF done.")

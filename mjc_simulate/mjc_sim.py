@@ -149,7 +149,7 @@ class MujocoSim:
         
 
         def init_controller(model,data):
-            self.scenario.init(self)
+            self.scenario.init(self, model, data)
 
 
         def controller(model, data):

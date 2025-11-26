@@ -54,7 +54,6 @@ class MujocoSim:
         # Set up scenario
         self.scenario = scenario
 
-        
 
 
     def set_up_ui(self):
@@ -149,7 +148,7 @@ class MujocoSim:
         # Example on how to set camera configuration
         self.cam.azimuth = -0.87
         self.cam.elevation = -25
-        self.cam.distance =  12
+        self.cam.distance =  10
         self.cam.lookat =np.array([ 0.0 , 0.0 , 0.0 ])
 
     def quat2euler(self, quat_mujoco, degrees=False):
@@ -181,7 +180,7 @@ class MujocoSim:
             self.tracking_flag = False
             self.altitude_ref = 5*np.ones(self.num_drones)
             return
-            self.scenario.init(self)
+
 
 
         def controller(model, data):
@@ -208,29 +207,38 @@ class MujocoSim:
                 body_quat = np.array(self.data.sensor(f'quat_{id}').data)
                 body_linvel = self.data.sensor(f'vel_{id}').data
                 body_angvel = self.data.sensor(f'gyro_{id}').data
+                body_acc = np.array(self.data.sensor(f'acc_{id}').data)
+                
                 vel = np.hstack((body_linvel, body_angvel))
-                # euler = self.quat2euler(body_quat)
-                # state = np.concatenate([body_pos, euler, vel])
                 state = np.concatenate([body_pos, body_quat, vel])
-                self.altitude_ref[id] += control_consensus[id, 2]*.01
-                control_input = self.controllers[id].vel_control_algorithm(state, control_consensus[id, :2], self.altitude_ref[id])
+                
+                self.altitude_ref[id] += control_consensus[id, 2]*0.01
+                control_input = self.controllers[id].vel_control_algorithm(
+                    state, control_consensus[id, :2], self.altitude_ref[id]
+                )
+                
+                # Convert body acceleration to world frame
+                acc_world = self.controllers[id].linear_acc_world(body_quat, body_acc)
                 
                 if id == 0 and self.tracking_flag:
-                    
                     pos_ref = self.path_tracking.look_ahead_point(body_pos)
-                    # control_follow_path = np.zeros_like(control_input)
-                    # control_follow_path = self.controllers[-1].pos_control_algorithm(state, pos_ref)
-                    # control_input += 0*control_follow_path
-                    # print(np.array(control_follow_path).shape)
-                    # control_input = self.controllers[-1].pos_control_algorithm(state, pos_ref)
-                    # print(control_input)
-                    # print(body_pos)
+                    control_input = self.controllers[-1].pos_control_algorithm(state, pos_ref)
+                
+                # --- Debug print ---
+                print(f"Drone {id}:")
+                print(f"  Pos      : {np.round(body_pos, 2)}")
+                print(f"  Quat     : {np.round(body_quat, 3)}")
+                print(f"  LinVel   : {np.round(body_linvel, 2)}")
+                print(f"  AngVel   : {np.round(body_angvel, 2)}")
+                print(f"  AccBody  : {np.round(body_acc, 2)}")
+                print(f"  AccWorld : {np.round(acc_world, 2)}")
+                print(f"  Control  : {np.round(control_input, 2)}\n")
 
                 for j in range(1, 5):
                     actuator_name = f"thrust{j}_{id}"
                     self.data.actuator(actuator_name).ctrl = control_input[j-1]
             return
-            self.scenario.update(self, model, data)
+
 
             
 
@@ -290,7 +298,7 @@ class MujocoSim:
 if __name__ == "__main__":
     xml_path = '../mjcf/scene_multiple_x2.xml'
     simulation_time = 1000 #simulation time
-    num_drones = 12
+    num_drones = 1
     fps = 60
     save_multi_drone_xml("mjcf/multiple_x2.xml", num_drones=num_drones)
     scenario = ScenarioBearingbasedConsensus()
