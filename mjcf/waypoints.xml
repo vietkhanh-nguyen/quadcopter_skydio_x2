@@ -1,0 +1,5 @@
+<mujoco>
+  <worldbody>
+    <geom name="dummy" type="sphere" size="0.001" rgba="0 0 0 0" pos="0 0 -10"/>
+  </worldbody>
+</mujoco>

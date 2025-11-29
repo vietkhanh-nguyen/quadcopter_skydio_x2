@@ -1,2 +1,0 @@
-<?xml version='1.0' encoding='utf-8'?>
-<mujoco model="obstacles"><worldbody><body name="obstacle_0" pos="5 4 3"><geom type="sphere" size="2" mass="1.0" rgba="1 0 0 0.5" /></body><body name="obstacle_1" pos="8 3 1"><geom type="sphere" size="2" mass="1.0" rgba="1 0 0 0.5" /></body></worldbody><actuator /></mujoco>
