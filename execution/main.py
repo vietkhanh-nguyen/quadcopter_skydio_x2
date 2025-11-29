@@ -14,12 +14,12 @@ from utilities.build_map import build_map_summary
 
 def mjc_sim_scenario_bearing_center_tracking_based():
     xml_path = '../mjcf/scene_multiple_x2.xml'
-    simulation_time = 160 #simulation time
+    simulation_time = 155 #simulation time
     time_step = None
-    fps = 25
+    fps = 60
     num_drones = 12
     plot = None
-    render_video = False
+    render_video = True
     # build_map_summary()
     save_multi_drone_xml("mjcf/multiple_x2.xml", num_drones=num_drones)
     scenario = ScenarioBearingbasedCenterTrackingConsensus()

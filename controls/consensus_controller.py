@@ -52,7 +52,7 @@ class MultiAgentConsensus:
         else:
             match formation:
                 case "icosahedron":
-                    X_ref = gen_icosahedron(radius=5)
+                    X_ref = gen_icosahedron(radius=3)
                 case  "sphere":
                     X_ref = gen_sphere(self.n_agents, self.dim_state, radius=1)
                 case "rectangle":

@@ -30,7 +30,7 @@ class ScenarioBearingbasedCenterTrackingConsensus:
         if self.path is None:
             self.path = sim.pos_ref
 
-        self.path_tracking = PurePursuit(look_ahead_dist=2, waypoints=self.path, alpha=0.95)
+        self.path_tracking = PurePursuit(look_ahead_dist=3, waypoints=self.path, alpha=0.95)
         self.controllers = []
         self.formation_controller = MultiAgentConsensus(
             sim.num_drones, K=2, graph_type="complete", center_virtual_agent=True
@@ -104,7 +104,8 @@ class ScenarioBearingbasedCenterTrackingConsensus:
                 if e_bearing_norm < self.e_bearing_tol:
                     self.operation_mode = "cruise"
                     self.altitude_ref = pos_full[:, 2]
-                    self.formation_scale = 0.3
+                    self.t0 = sim.data.time 
+                    self.formation_scale = 0.5
                     self.X_virtual = np.mean(pos_full, axis=0)
                     self.dX_virtual = np.array([0.0, 0.0, 0.0])
                     self.ddX_virtual = np.array([0.0, 0.0, 0.0])
@@ -114,9 +115,9 @@ class ScenarioBearingbasedCenterTrackingConsensus:
 
                 
             case "cruise":
-                pos_full = np.block([[pos_full], [self.X_virtual]])
-                linvel_full = np.block([[linvel_full], [self.dX_virtual]])
-                acc_full = np.block([[acc_full], [self.ddX_virtual]])
+                pos_full = np.block([[pos_full], [self.X_virtual_2], [self.X_virtual]])
+                linvel_full = np.block([[linvel_full], [self.dX_virtual_2], [self.dX_virtual]])
+                acc_full = np.block([[acc_full], [self.ddX_virtual_2], [self.ddX_virtual]])
                 control_consensus = self.formation_controller.consensus_leader_vel_varying_law(
                     pos_full, linvel_full, acc_full, kp=100, kv=200, ka=2, kadv=20
                 )
@@ -129,7 +130,7 @@ class ScenarioBearingbasedCenterTrackingConsensus:
 
                 if (self.path_tracking.goal_flag) and (e_bearing_norm < self.e_bearing_tol):
                     self.operation_mode = "formation_rectangle"
-                    self.altitude_ref = pos_full[:-1, 2]
+                    self.altitude_ref = pos_full[:-2, 2]
                     self.formation_controller._init_states("rectangle")
 
             case "formation_rectangle":
@@ -147,7 +148,7 @@ class ScenarioBearingbasedCenterTrackingConsensus:
 
         # --- Update camera once per timestep ---
         sim.cam.lookat = pos_full.mean(axis=0)
-        # sim.cam.azimuth += 0.1
+        sim.cam.azimuth += 0.1
 
         
 
@@ -166,13 +167,18 @@ class ScenarioBearingbasedCenterTrackingConsensus:
                 self.ddX_virtual = -1*(self.X_virtual - pos_ref) - 5*self.dX_virtual 
                 self.dX_virtual += self.ddX_virtual*dt 
                 self.X_virtual += self.dX_virtual*dt 
-                # u = self.leader_controller[0].pos_control_algorithm(state_full[i, :], pos_ref+ v_rep[i, :]*dt)
+
+
+                scale_varying = (1 - self.formation_scale)*np.exp(-(sim.data.time - self.t0))
+                self.ddX_virtual_2 = self.ddX_virtual + self.formation_controller.X_ref[-2]*scale_varying
+                self.dX_virtual_2 = self.dX_virtual - self.formation_controller.X_ref[-2]*scale_varying
+                self.X_virtual_2 = self.X_virtual + self.formation_controller.X_ref[-2]*(self.formation_scale + scale_varying)
 
             # Leader 1 drone follows the leader 0 to form the formation_scale
-            if i == 2 and self.operation_mode == "cruise":
-                ref_dir = (self.formation_controller.X_ref[i] - self.formation_controller.X_ref[-1])
-                pos_ref_2 = self.X_virtual + (self.formation_scale * ref_dir) + self.dX_virtual*dt + .5*self.dX_virtual*dt*dt 
-                u = self.leader_controller[1].pos_control_algorithm(state_full[i, :], pos_ref_2)
+            # if i == 2 and self.operation_mode == "cruise":
+            #     ref_dir = (self.formation_controller.X_ref[i] - self.formation_controller.X_ref[-1])
+            #     pos_ref_2 = self.X_virtual + (self.formation_scale * ref_dir) + self.dX_virtual*dt + .5*self.dX_virtual*dt*dt 
+            #     u = self.leader_controller[1].pos_control_algorithm(state_full[i, :], pos_ref_2)
                 
 
 

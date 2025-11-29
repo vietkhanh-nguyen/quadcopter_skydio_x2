@@ -30,6 +30,7 @@ class MujocoRender:
         # Print camera config
         self.print_camera_config = False #set to True to print camera config
                                          #this is useful for initializing view of the model)
+        self.print_sim_time = True
 
         # Receive key input
         self.button_left = False
@@ -63,6 +64,8 @@ class MujocoRender:
         self.scene = mj.MjvScene(self.model, maxgeom=10000)
         with mj.Renderer(self.model, 512, 512) as renderer:
             while self.data.time < self.simulation_time:
+                if self.print_sim_time:
+                    print(self.data.time)
                 self.counter +=1
                 mj.mj_step(self.model, self.data)
                     
