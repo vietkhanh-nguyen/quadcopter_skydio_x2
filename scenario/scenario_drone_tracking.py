@@ -4,10 +4,7 @@ from controls.pure_pursuit import PurePursuit
 from path_planning.a_star_search import path_finding
 
 class ScenarioDroneTracking:
-    """
-    Scenario for single-drone altitude tracking + path following.
-    """
-
+    
     def __init__(self):
         self.name = "Drone Tracking Trajectory"
         start_pos = np.array([0.0, 0.0, 5.0])

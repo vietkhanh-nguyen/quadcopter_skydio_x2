@@ -39,6 +39,7 @@
 
     <body name="x2" pos="0 0 0" childclass="x2">
       <freejoint/>
+      <!-- <camera name="cam_monitor" pos="-1 0 .5" xyaxes="0 -1 0 1 0 2" mode="trackcom"/> -->
       <camera name="track" pos="-1 0 .5" xyaxes="0 -1 0 1 0 2" mode="trackcom"/>
       <site name="imu" pos="0 0 .02"/>
       <geom material="phong3SG" mesh="X2_lowpoly" class="visual" quat="0 0 1 1"/>
