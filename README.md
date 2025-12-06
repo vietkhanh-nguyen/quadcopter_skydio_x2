@@ -11,7 +11,7 @@ The project includes:
 - A full report documenting methodology
 
 <p align="center">
-  <img src="outputs/Multi-UAVs.png" width="50%">
+  <img src="outputs/Multi-UAVs.png" width="100%">
 </p>
 
 ---
