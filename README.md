@@ -1,6 +1,6 @@
 # Skydio X2 Multi-Agent Simulation Framework
 
-This repository is part of my Master’s personal project, where I explore topics in drone simulation, multi-agent control, and autonomous navigation. I built this project to document what I learned, experiment with ideas I find interesting, and share my code with anyone who is also passionate about drones, robotics, and control systems. This repository provides a complete framework for **multi-drone simulation**, **formation control**, **pure pursuit tracking**, and **path planning** using **MuJoCo (MJCF)** and Python.  
+This repository is part of my Master’s personal project, where I explore topics in drone simulation, multi-agent control, and autonomous navigation. I built this project to document what I learned, experiment with ideas I find interesting, and share my code with anyone who is also passionate about drones, robotics, and control systems. This repository provides a complete framework for **multi-drone simulation**, **formation control**, **pure pursuit tracking**, and **path planning** using **MuJoCo** and Python.  
 The project includes:
 
 - Multi-agent control modules (consensus, quadcopter control, pure pursuit)
@@ -28,10 +28,10 @@ The project includes:
 - Bearing-only control
 - Bearing-only tracking waypoints control
 
-### MuJoCo (MJCF) Simulation (mjcf/, mjc_simulate/)
+### MuJoCo Simulation (mjcf/, mjc_simulate/)
 - Custom MJCF model of Skydio X2  
 - Multi-agent scenes  
-- Scripts for real-time MJCF simulation and rendering  
+- Scripts for real-time mujoco simulation and rendering  
 
 ### Path Planning (path_planning/)
 - Fully custom A* implementation  
