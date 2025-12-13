@@ -99,7 +99,7 @@ class QuadcopterPIDController:
 
     
     def normalize_angle(self, angle):
-        return (angle + np.pi) % (2 * np.pi) - np.pi
+        return np.arctan2(np.sin(angle), np.cos(angle))
 
     def low_pass_filter(self, raw_de, pre_de, alpha = 0.1):
         return (1 - alpha)*pre_de + alpha*raw_de
@@ -231,7 +231,7 @@ class QuadcopterPIDController:
         u_thrust = self.thrust_controller(altitude_ref - z, -vz)
         u_roll = self.roll_controller(roll_ref - roll)
         u_pitch = self.pitch_controller(pitch_ref - pitch)
-        u_yaw = self.yaw_controller(yaw_ref-yaw) if yaw_ref is not None else self.yaw_controller(-yaw)
+        u_yaw = self.yaw_controller(self.normalize_angle(yaw_ref-yaw)) if yaw_ref is not None else self.yaw_controller(self.normalize_angle(-yaw))
         return np.array(self.motor_mixing_algorithm(u_thrust, u_roll, u_pitch, u_yaw))
 
     def vel_body_control_algorithm(self, state, vel_ref, altitude_ref, yaw_ref=None):
@@ -240,12 +240,17 @@ class QuadcopterPIDController:
         x, y, z, quat_cons, quat_x, quat_y, quat_z, vx, vy, vz, v_roll, v_pitch, vyaw = state
         roll, pitch, yaw = self.quat2euler(np.array([quat_cons, quat_x, quat_y, quat_z]))
 
-        # Generate roll and pitch reference from position error
-        vel_error = vel_ref - np.array([vx, vy])
+        yaw_norm = self.normalize_angle(yaw)
+        R_world_to_body = np.array([
+            [np.cos(yaw_norm),  np.sin(yaw_norm)],
+            [-np.sin(yaw_norm), np.cos(yaw_norm)]
+        ])
+        vel_body_curr = R_world_to_body @ np.array([vx, vy])
+        vel_error = vel_ref - vel_body_curr
         yaw = self.normalize_angle(yaw)
         pitch_ref, roll_ref = self.velocity_controller(vel_error)
         u_thrust = self.thrust_controller(altitude_ref - z, -vz)
         u_roll = self.roll_controller(roll_ref - roll)
         u_pitch = self.pitch_controller(pitch_ref - pitch)
-        u_yaw = self.yaw_controller(yaw_ref-yaw) if yaw_ref is not None else self.yaw_controller(-yaw)
+        u_yaw = self.yaw_controller(self.normalize_angle(yaw_ref-yaw)) if yaw_ref is not None else self.yaw_controller(self.normalize_angle(-yaw))
         return np.array(self.motor_mixing_algorithm(u_thrust, u_roll, u_pitch, u_yaw))

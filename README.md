@@ -69,5 +69,28 @@ A complete project report explaining the algorithms and system design:
 docs/report_final.pdf
 ```
 
+## Manual Drone Control (Body Frame)
+- **Script:** `main_keyboard_x2.py`
+- **Description:** Allows for manual piloting of the drone using keyboard inputs. The controller operates in the **body frame**, meaning directional keys control velocity relative to the drone's current orientation (Forward, Backward, Left, Right), rather than global coordinates.
+- **Control Scheme:**
+
+| Category | Key | Action |
+| :--- | :--- | :--- |
+| **Horizontal Velocity** | **`Arrow UP`** | Increase Forward Velocity ($+v_x$) |
+| | **`Arrow DOWN`** | Increase Backward Velocity ($-v_x$) |
+| | **`Arrow LEFT`** | Increase Left Velocity ($+v_y$) |
+| | **`Arrow RIGHT`** | Increase Right Velocity ($-v_y$) |
+| **Altitude (Z)** | **`. >` (Period)** | Ascend (Increase Reference Height) |
+| | **`, <` (Comma)** | Descend (Decrease Reference Height) |
+| **Yaw (Heading)** | **`W`** | Face Forward ($0^\circ$) |
+| | **`Q` / `E`** | Rotate $\pm 45^\circ$ |
+| | **`A` / `D`** | Rotate $\pm 90^\circ$ (Left/Right) |
+| | **`Z` / `C`** | Rotate $\pm 135^\circ$ |
+| | **`X`** | Face Backward ($180^\circ$) |
+| **System** | **`Space`** | **Stop/Hover** (Resets velocities to 0) |
+| | **`Backspace`** | Reset Simulation Data |
+| | **`Esc`** | Close Simulation |
+
 ## Example Outputs
 Simulation results are located in `outputs/`
+
