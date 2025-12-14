@@ -4,5 +4,4 @@ __pycache__/
 *.pyo
 *.pyd
 draft*.py
-*.gif
 *.pkl
